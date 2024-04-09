@@ -65,6 +65,11 @@ namespace MultiPlayer
             }
         }
 
+        /// <summary>
+        /// Create a playlsist from XML file
+        /// </summary>
+        /// <param name="xmlFilePath"></param>
+        /// <returns></returns>
         private List<(string FileName, TimeSpan Duration)> GetFileNamesFromXml(string xmlFilePath)
         {
             var fileNames = new List<(string FileName, TimeSpan Duration)>();
@@ -80,6 +85,8 @@ namespace MultiPlayer
                     var durationStr = fileNode.SelectSingleNode("Duration")?.InnerText;
                     if (File.Exists(fileName) && TimeSpan.TryParseExact(durationStr, @"mm\:ss", null, out TimeSpan duration))
                     {
+                        // Zero seconds duration means duration == video length
+                        if (duration.TotalSeconds == 0) duration = TimeSpan.MaxValue;
                         var fi = new FileInfo(fileName);
                         if (fi.Length > 1024 * 1024) fileNames.Add((fileName, duration));
                     }
@@ -93,6 +100,11 @@ namespace MultiPlayer
             return fileNames;
         }
 
+        /// <summary>
+        /// Starts playlist playback
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void PlayButton_Click(object sender, RoutedEventArgs e)
         {
             PlayButton.IsEnabled = false;
@@ -100,7 +112,7 @@ namespace MultiPlayer
 
             double previewWidth, previewHeight;
 
-            // First, create, maximize and move preview window to specified screen
+            // First, create, position and maximize output window for specified screen
             previewWindow = new PreviewWindow();
             var screen = Screen.AllScreens.ElementAt(ScreenCombo.SelectedIndex);
             previewWindow.Left = screen.Bounds.Left;
@@ -112,9 +124,11 @@ namespace MultiPlayer
             previewWindow.Show();
             previewWindow.WindowState = WindowState.Maximized;
 
+            // We should scale width & height by used scale factor
             previewWidth = previewWidth / screen.ScaleFactor;
             previewHeight = previewHeight / screen.ScaleFactor;
 
+            // Create a video playback thread 
             videoIndex = 0;
             worker = new BackgroundWorker { WorkerSupportsCancellation = true };
             worker.DoWork += (object worker, DoWorkEventArgs ea) =>
@@ -123,6 +137,7 @@ namespace MultiPlayer
 
                 while (true)
                 { 
+                    // Create a video player. Only one player will be used for playback
                     var videoPlayer = new VideoCapture(playlist[videoIndex].FileName);
                     
                     if (videoPlayer.IsOpened())
@@ -141,7 +156,7 @@ namespace MultiPlayer
 
                                 if (frame != null)
                                 {
-                                    // Are we reached end of the video?
+                                    // Are we reached end of the video or end of desired duration?
                                     if (frame.Empty() ||
                                         DateTime.Now - videoStartTime > playlist[videoIndex].Duration)
                                     {
@@ -152,13 +167,14 @@ namespace MultiPlayer
                                     {
                                         Dispatcher.Invoke(() =>
                                         {
+                                            // Create a large "off screen" Mat. It should be higher than screen height
                                             var resultMat = new Mat((int) (previewHeight + frame.Height*2), (int)previewWidth, frame.Type());
 
+                                            // Fill "off screen" Mat by video frame
                                             FillMat(resultMat, frame);
 
+                                            // Copy filled "off screen" Mat to resulting Image
                                             previewWindow.PreviewImage.Source = resultMat.ToWriteableBitmap();
-
-                                            resultMat.Dispose();
                                         });
                                     }
                                     Thread.Sleep(playbackSleepTime);
@@ -166,9 +182,6 @@ namespace MultiPlayer
                             }
                             catch { break; }
                         }
-
-                        frame?.Dispose();
-
                         // Rewind playlist
                         if (++videoIndex >= playlist.Count) videoIndex = 0;
 
@@ -180,15 +193,25 @@ namespace MultiPlayer
             worker.RunWorkerAsync();
         }
 
+        /// <summary>
+        /// Stops playback and close window
+        /// </summary>
+        /// <param name="sender"></param>
+        /// <param name="e"></param>
         private void StopButton_Click(object sender, RoutedEventArgs e)
         {
             worker.CancelAsync();
             previewWindow.Hide();
             previewWindow.Close();
             PlayButton.IsEnabled = playlist.Count > 0;
-            StopButton.IsEnabled = true;
+            StopButton.IsEnabled = false;
         }
 
+        /// <summary>
+        /// Fills large Mat by content of the small Mat with overlapping
+        /// </summary>
+        /// <param name="largeMat">Large resulting Mat</param>
+        /// <param name="smallMat">Video frame</param>
         public static void FillMat(Mat largeMat, Mat smallMat)
         {
             // Get dimensions of the large and small Mats
@@ -196,14 +219,12 @@ namespace MultiPlayer
             int largeHeight = largeMat.Height;
             int smallWidth = smallMat.Width;
             int smallHeight = smallMat.Height;
+            int rowHeight = smallHeight;
             int startX = 0;
 
             // Loop through large Mat in rows
             for (int y = 0; y < largeHeight - smallHeight*2; y += smallHeight)
             {
-                // Calculate the height of the current row
-                int rowHeight = Math.Min(smallHeight, largeHeight - y);
-
                 // Loop through large Mat in columns
                 for (int x = startX; x < largeWidth; x += smallWidth)
                 {
@@ -218,10 +239,8 @@ namespace MultiPlayer
                     int copyHeight = Math.Min(smallHeight, largeHeight - y);
 
                     // If we are at the right or bottom edge, adjust the copy size
-                    if (x + smallWidth > largeWidth)
-                        copyWidth = largeWidth - x;
-                    if (y + smallHeight > largeHeight)
-                        copyHeight = largeHeight - y;
+                    if (x + smallWidth > largeWidth) copyWidth = largeWidth - x;
+                    if (y + smallHeight > largeHeight) copyHeight = largeHeight - y;
 
                     // Define the region of interest (ROI) in the small Mat
                     Rect smallRoi = new Rect(0, 0, copyWidth, copyHeight);

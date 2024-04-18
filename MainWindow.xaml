@@ -8,18 +8,20 @@
         WindowStartupLocation="CenterScreen"
         Title="MainWindow" 
         Topmost="False"
-        Width="400"
-        Height="200"
+        Width="560"
+        Height="280"
         Loaded="Window_Loaded"
         Closed="Window_Closed">
     
     <Grid Margin="20 10">
         <Grid.ColumnDefinitions>
-            <ColumnDefinition Width="1*"/>
-            <ColumnDefinition Width="2*"/>
+            <ColumnDefinition Width="1.4*"/>
+            <ColumnDefinition Width="5*"/>
         </Grid.ColumnDefinitions>
 
         <Grid.RowDefinitions>
+            <RowDefinition Height="1*"/>
+            <RowDefinition Height="1*"/>
             <RowDefinition Height="1*"/>
             <RowDefinition Height="1*"/>
             <RowDefinition Height="*"/>
@@ -27,14 +29,45 @@
 
         <TextBlock Text="Select XML playlist:" Grid.Column="0" Grid.Row="0" VerticalAlignment="Center"/>
         <StackPanel Orientation="Horizontal" Grid.Column="1" Grid.Row="0" >
-            <TextBox x:Name="Playlist" Width="186" VerticalAlignment="Center"/>
+            <TextBox x:Name="Playlist" Width="350" VerticalAlignment="Center"/>
             <Button Margin="10 0 0 0" Width="30" Height="30" FontFamily="Segoe UI Symbol" Content="" Click="SelectPlaylistButton_Click"/>
         </StackPanel>
 
-        <TextBlock Text="Output screen:" Grid.Column="0" Grid.Row="1" VerticalAlignment="Center"/>
-        <ComboBox x:Name="ScreenCombo" Grid.Column="1" Grid.Row="1" VerticalAlignment="Center" HorizontalAlignment="Left" Width="60"/>
+        <TextBlock Text="Window(s) width:" Grid.Column="0" Grid.Row="1" VerticalAlignment="Center"/>
+        <StackPanel Grid.Row="1" Grid.Column="1" Orientation="Horizontal" VerticalAlignment="Center">
+            <TextBox x:Name="WindowsWidth" Text="1900" Width="60"/>
+            <TextBlock Text="Fill window(s):" Margin="20 0"/>
+            <CheckBox x:Name="FillWindows" IsChecked="True"/>
+        </StackPanel>
 
-        <StackPanel Orientation="Horizontal" Grid.Column="1" Grid.Row="3" >
+        <TextBlock Text="Window 1:" Grid.Column="0" Grid.Row="2" VerticalAlignment="Center"/>
+        <StackPanel Grid.Column="1" Grid.Row="2" Orientation="Horizontal">
+            <CheckBox IsChecked="True" VerticalAlignment="Center" Margin="10 0" IsHitTestVisible="False"/>
+            <TextBlock Text="Height:" VerticalAlignment="Center" Margin="5 0"/>
+            <TextBox x:Name="Window1Height" Text="1080" VerticalAlignment="Center" Width="40"/>
+            <TextBlock Text="Left:" VerticalAlignment="Center" Margin="15 0 5 0"/>
+            <TextBox x:Name="Window1Left" Text="0" VerticalAlignment="Center" Width="40"/>
+            <TextBlock Text="Top:" VerticalAlignment="Center" Margin="15 0 5 0"/>
+            <TextBox x:Name="Window1Top" Text="0" VerticalAlignment="Center" Width="40"/>
+            <TextBlock Text="Screen:" VerticalAlignment="Center" Margin="15 0 5 0"/>
+            <ComboBox x:Name="Window1ScreenCombo" VerticalAlignment="Center" Width="50"/>
+        </StackPanel>
+
+        <TextBlock Text="Window 2:" Grid.Column="0" Grid.Row="3" VerticalAlignment="Center"/>
+        <StackPanel Grid.Column="1" Grid.Row="3" Orientation="Horizontal">
+            <CheckBox x:Name="ShowWindow2" IsChecked="False" VerticalAlignment="Center" Margin="10 0"/>
+            <TextBlock Text="Height:" VerticalAlignment="Center" Margin="5 0"/>
+            <TextBox x:Name="Window2Height" Text="1080" VerticalAlignment="Center" Width="40"/>
+            <TextBlock Text="Left:" VerticalAlignment="Center" Margin="15 0 5 0"/>
+            <TextBox x:Name="Window2Left" Text="200" VerticalAlignment="Center" Width="40"/>
+            <TextBlock Text="Top:" VerticalAlignment="Center" Margin="15 0 5 0"/>
+            <TextBox x:Name="Window2Top" Text="200" VerticalAlignment="Center" Width="40"/>
+            <TextBlock Text="Screen:" VerticalAlignment="Center" Margin="15 0 5 0"/>
+            <ComboBox x:Name="Window2ScreenCombo" VerticalAlignment="Center" Width="50"/>
+        </StackPanel>
+
+
+        <StackPanel Orientation="Horizontal" HorizontalAlignment="Center" VerticalAlignment="Bottom" Grid.Column="0" Grid.ColumnSpan="2" Grid.Row="4" >
             <Button x:Name="PlayButton" IsEnabled="False" Content="Play  ▶" Width="80" Height="30" Click="PlayButton_Click"/>
             <Button x:Name="StopButton" Margin="20 0 0 0" IsEnabled="False" Content="Stop ■" Width="80" Height="30" Click="StopButton_Click" />
         </StackPanel>

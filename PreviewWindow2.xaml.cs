@@ -15,11 +15,11 @@ using System.Windows.Shapes;
 namespace MultiPlayer
 {
     /// <summary>
-    /// Interaction logic for PreviewWindow.xaml
+    /// Interaction logic for PreviewWindow2.xaml
     /// </summary>
-    public partial class PreviewWindow : Window
+    public partial class PreviewWindow2 : Window
     {
-        public PreviewWindow()
+        public PreviewWindow2()
         {
             InitializeComponent();
         }

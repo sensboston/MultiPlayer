@@ -50,7 +50,7 @@
             <TextBlock Text="Top:" VerticalAlignment="Center" Margin="15 0 5 0"/>
             <TextBox x:Name="Window1Top" Text="0" VerticalAlignment="Center" Width="40"/>
             <TextBlock Text="Screen:" VerticalAlignment="Center" Margin="15 0 5 0"/>
-            <ComboBox x:Name="Window1ScreenCombo" VerticalAlignment="Center" Width="50"/>
+            <ComboBox x:Name="Window1ScreenCombo" VerticalAlignment="Center" Width="46"/>
         </StackPanel>
 
         <TextBlock Text="Window 2:" Grid.Column="0" Grid.Row="3" VerticalAlignment="Center"/>
@@ -59,11 +59,11 @@
             <TextBlock Text="Height:" VerticalAlignment="Center" Margin="5 0"/>
             <TextBox x:Name="Window2Height" Text="1080" VerticalAlignment="Center" Width="40"/>
             <TextBlock Text="Left:" VerticalAlignment="Center" Margin="15 0 5 0"/>
-            <TextBox x:Name="Window2Left" Text="200" VerticalAlignment="Center" Width="40"/>
+            <TextBox x:Name="Window2Left" Text="150" VerticalAlignment="Center" Width="40"/>
             <TextBlock Text="Top:" VerticalAlignment="Center" Margin="15 0 5 0"/>
-            <TextBox x:Name="Window2Top" Text="200" VerticalAlignment="Center" Width="40"/>
+            <TextBox x:Name="Window2Top" Text="100" VerticalAlignment="Center" Width="40"/>
             <TextBlock Text="Screen:" VerticalAlignment="Center" Margin="15 0 5 0"/>
-            <ComboBox x:Name="Window2ScreenCombo" VerticalAlignment="Center" Width="50"/>
+            <ComboBox x:Name="Window2ScreenCombo" VerticalAlignment="Center" Width="46"/>
         </StackPanel>
 
 

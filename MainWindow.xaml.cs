@@ -4,6 +4,7 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using System.Windows;
 using System.Xml;
 using OpenCvSharp;
@@ -19,14 +20,10 @@ namespace MultiPlayer
     /// </summary>
     public partial class MainWindow : Window
     {
-        private PreviewWindow1 previewWindow1;
-        private PreviewWindow2 previewWindow2;
+        private PreviewWindow previewWindow;
         private BackgroundWorker worker;
-
-        private List<string> mediaFiles = new List<string>();
-        private List<VideoCapture> players;
-        private List<(int index, Mat mat)> mats;
-
+        private List<(string FileName, TimeSpan Duration)> playlist;
+        private int videoIndex = 0;
         private int playbackSleepTime = 20;
 
         public MainWindow()
@@ -36,40 +33,35 @@ namespace MultiPlayer
 
         private void Window_Loaded(object sender, RoutedEventArgs e)
         {
-            for (int i = 0; i < Screen.AllScreens.Count(); i++)
-            {
-                Window1ScreenCombo.Items.Add(i.ToString());
-                Window2ScreenCombo.Items.Add(i.ToString());
-            }
-            Window1ScreenCombo.SelectedIndex = 0;
-            Window2ScreenCombo.SelectedIndex = 0;
+            for (int i = 0; i< Screen.AllScreens.Count(); i++)
+                ScreenCombo.Items.Add(i.ToString());
+            ScreenCombo.SelectedIndex = 0;
         }
 
         private void Window_Closed(object sender, EventArgs e)
         {
             worker?.CancelAsync();
-            previewWindow1?.Hide();
-            previewWindow1?.Close();
+            previewWindow?.Hide();
+            previewWindow?.Close();
         }
 
         private void SelectPlaylistButton_Click(object sender, RoutedEventArgs e)
         {
-            var openFileDialog = new Microsoft.Win32.OpenFileDialog()
+            var ofd = new Microsoft.Win32.OpenFileDialog()
             {
                 CheckFileExists = true,
                 DefaultExt = ".xml",
-                InitialDirectory = "D:\\4",
+                InitialDirectory = "D:\\3",
                 Filter = "XML files (.xml)|*.xml",
                 Title = "Select playlist"
             };
 
             // Show open file dialog box
-            if (openFileDialog.ShowDialog() == true)
+            if (ofd.ShowDialog() == true)
             {
-                Playlist.Text = openFileDialog.FileName;
-                mediaFiles.Clear();
-                CreatePlaylist(openFileDialog.FileName);
-                PlayButton.IsEnabled = mediaFiles.Count > 0;
+                Playlist.Text = ofd.FileName;
+                playlist = GetFileNamesFromXml(ofd.FileName);
+                PlayButton.IsEnabled = playlist.Count > 0;
             }
         }
 
@@ -78,7 +70,7 @@ namespace MultiPlayer
         /// </summary>
         /// <param name="xmlFilePath"></param>
         /// <returns></returns>
-        private void CreatePlaylist(string xmlFilePath)
+        private List<(string FileName, TimeSpan Duration)> GetFileNamesFromXml(string xmlFilePath)
         {
             var fileNames = new List<(string FileName, TimeSpan Duration)>();
 
@@ -87,46 +79,25 @@ namespace MultiPlayer
                 var xmlDoc = new XmlDocument();
                 xmlDoc.Load(xmlFilePath);
                 var fileNodes = xmlDoc.SelectNodes("//File");
-                if (fileNodes != null && fileNodes.Count > 0)
+                foreach (XmlNode fileNode in fileNodes)
                 {
-                    // Special fix for misstype in the "Duration" attribute name
-                    var durationName = fileNodes.Item(0).SelectSingleNode("Duration") == null ? "Duraion" : "Duration";
-
-                    foreach (XmlNode fileNode in fileNodes)
+                    var fileName = fileNode.SelectSingleNode("Filename")?.InnerText;
+                    var durationStr = fileNode.SelectSingleNode("Duration")?.InnerText;
+                    if (File.Exists(fileName) && TimeSpan.TryParseExact(durationStr, @"mm\:ss", null, out TimeSpan duration))
                     {
-                        var fileName = fileNode.SelectSingleNode("Filename")?.InnerText;
-
-                        // Create full path based on file name and file directory
-                        var mediaPath = Path.GetDirectoryName(xmlFilePath);
-                        fileName = Path.GetFileName(fileName);
-                        fileName = Path.Combine(mediaPath, fileName);
-
-                        var durationStr = fileNode.SelectSingleNode(durationName)?.InnerText;
-                        if (File.Exists(fileName) && TimeSpan.TryParseExact(durationStr, @"mm\:ss", null, out TimeSpan duration))
-                        {
-                            // Zero seconds duration means duration == video length
-                            if (duration.TotalSeconds == 0) duration = TimeSpan.MaxValue;
-                            var fi = new FileInfo(fileName);
-                            if (fi.Length > 1024 * 1024) fileNames.Add((fileName, duration));
-                        }
+                        // Zero seconds duration means duration == video length
+                        if (duration.TotalSeconds == 0) duration = TimeSpan.MaxValue;
+                        var fi = new FileInfo(fileName);
+                        if (fi.Length > 1024 * 1024) fileNames.Add((fileName, duration));
                     }
-
-                    // Get list of unique media files
-                    mediaFiles = fileNames.Select(n => n.FileName).Distinct().ToList();
-
-                    mats = new List<(int index, Mat mat)>();
-                    foreach(var fileName in fileNames)
-                    {
-                        var index = mediaFiles.IndexOf(fileName.FileName);
-                        mats.Add((index, null));
-                    }
-
                 }
             }
             catch (Exception ex)
             {
                 Debug.WriteLine("Error: " + ex.Message);
             }
+
+            return fileNames;
         }
 
         /// <summary>
@@ -139,112 +110,83 @@ namespace MultiPlayer
             PlayButton.IsEnabled = false;
             StopButton.IsEnabled = true;
 
-            double previewWidth, previewHeight1, previewHeight2 = 0;
+            double previewWidth, previewHeight;
 
             // First, create, position and maximize output window for specified screen
-            previewWindow1 = new PreviewWindow1();
-            var screen = Screen.AllScreens.ElementAt(Window1ScreenCombo.SelectedIndex);
-            previewWindow1.Left = screen.Bounds.Left + int.Parse(Window1Left.Text);
-            previewWindow1.Top = screen.Bounds.Top + int.Parse(Window1Top.Text);
-            previewWindow1.Width = previewWidth = int.Parse(WindowsWidth.Text);
-            previewWindow1.Height = previewHeight1 = int.Parse(Window1Height.Text);
-            previewWindow1.PreviewImage1.Width = previewWidth;
-            previewWindow1.PreviewImage1.Height = previewHeight1;
-            previewWindow1.Show();
+            previewWindow = new PreviewWindow();
+            var screen = Screen.AllScreens.ElementAt(ScreenCombo.SelectedIndex);
+            previewWindow.Left = screen.Bounds.Left;
+            previewWindow.Top = screen.Bounds.Top;
+            previewWindow.Width = previewWidth = screen.Bounds.Width;
+            previewWindow.Height = previewHeight = screen.Bounds.Height;
+            previewWindow.PreviewImage.Width = previewWidth;
+            previewWindow.PreviewImage.Height = previewHeight;
+            previewWindow.Show();
+            previewWindow.WindowState = WindowState.Maximized;
 
-            if (ShowWindow2.IsChecked == true)
-            {
-                previewWindow2 = new PreviewWindow2();
-                screen = Screen.AllScreens.ElementAt(Window2ScreenCombo.SelectedIndex);
-                previewWindow2.Left = screen.Bounds.Left + int.Parse(Window2Left.Text);
-                previewWindow2.Top = screen.Bounds.Top + int.Parse(Window2Top.Text);
-                previewWindow2.Width = previewWidth;
-                previewWindow2.Height = previewHeight2 = int.Parse(Window2Height.Text);
-                previewWindow2.PreviewImage2.Width = previewWidth;
-                previewWindow2.PreviewImage2.Height = previewHeight1;
-                previewWindow2.Show();
-            }
-
-            // Create players list
-            players = new List<VideoCapture>();
-            foreach (var mediaFile in mediaFiles)
-            {
-                var capture = new VideoCapture(mediaFile);
-                if (capture.IsOpened()) players.Add(capture);
-            }
+            // We should scale width & height by used scale factor
+            previewWidth = previewWidth / screen.ScaleFactor;
+            previewHeight = previewHeight / screen.ScaleFactor;
 
             // Create a video playback thread 
+            videoIndex = 0;
             worker = new BackgroundWorker { WorkerSupportsCancellation = true };
-            worker.DoWork += (object _, DoWorkEventArgs ea) =>
+            worker.DoWork += (object worker, DoWorkEventArgs ea) =>
             {
-                bool isVideoEnded = false;
+                bool isCancelled = false, isVideoEnded = false;
 
-                playbackSleepTime = (int)(1000 / players.First().Fps) / 4;
-                int frameHeight = -1;
-
-                while (!worker.CancellationPending)
-                {
-                    var videoStartTime = DateTime.Now;
-                    isVideoEnded = false;
-                    Mat frame = null;
-
-                    while (!(worker.CancellationPending || isVideoEnded))
+                while (true)
+                { 
+                    // Create a video player. Only one player will be used for playback
+                    var videoPlayer = new VideoCapture(playlist[videoIndex].FileName);
+                    
+                    if (videoPlayer.IsOpened())
                     {
-                        // Process all unique media files and fill Mat list
-                        for (int i = 0; i < players.Count; i++)
+                        var videoStartTime = DateTime.Now;
+                        isVideoEnded = false;
+                        playbackSleepTime = (int)(1000 / videoPlayer.Fps);
+
+                        Mat frame = null;
+
+                        while (!(isCancelled || isVideoEnded))
                         {
-                            if (worker.CancellationPending) break;
-
-                            frame = players[i].RetrieveMat();
-
-                            // Rewind player by the end of video
-                            if (frame.Empty())
+                            try
                             {
-                                players[i].Set(VideoCaptureProperties.PosFrames, 0);
-                                frame = players[i].RetrieveMat();
-                            }
+                                frame = videoPlayer.IsOpened() ? videoPlayer.RetrieveMat() : null;
 
-                            if (frame != null && !frame.Empty())
-                            {
-                                if (frameHeight < 0) frameHeight = frame.Height;
+                                if (frame != null)
+                                {
+                                    // Are we reached end of the video or end of desired duration?
+                                    if (frame.Empty() ||
+                                        DateTime.Now - videoStartTime > playlist[videoIndex].Duration)
+                                    {
+                                        isVideoEnded = true;
+                                        continue;
+                                    }
+                                    else
+                                    {
+                                        Dispatcher.Invoke(() =>
+                                        {
+                                            // Create a large "off screen" Mat. It should be higher than screen height
+                                            var resultMat = new Mat((int) (previewHeight + frame.Height*2), (int)previewWidth, frame.Type());
 
-                                for (int j = 0; j < mats.Count; j++)
-                                    if (mats[j].index == i)
-                                        mats[j] = (i, frame);
+                                            // Fill "off screen" Mat by video frame
+                                            FillMat(resultMat, frame);
+
+                                            // Copy filled "off screen" Mat to resulting Image
+                                            previewWindow.PreviewImage.Source = resultMat.ToWriteableBitmap();
+                                        });
+                                    }
+                                    Thread.Sleep(playbackSleepTime);
+                                }
                             }
+                            catch { break; }
                         }
+                        // Rewind playlist
+                        if (++videoIndex >= playlist.Count) videoIndex = 0;
 
-                        Dispatcher.Invoke(() =>
-                        {
-                            if (previewWindow1 != null && previewWindow1.IsVisible)
-                            {
-                                // Create a large "off screen" Mat. It should be higher than screen height
-                                var resultMat = new Mat((int)(previewHeight1 + previewHeight2 + frameHeight * 20), (int)previewWidth, frame.Type());
-
-                                // Combine all rendered mats to one, very wide mat
-                                Mat wideMat = CombineMats(mats.Select(m => m.mat).ToList());
-
-                                // Fill "off screen" Mat by captured video frames
-                                FillRectangularMat(resultMat, wideMat);
-
-                                wideMat.Dispose();
-
-                                // Copy filled "off screen" Mat to resulting Image
-                                if (ShowWindow2.IsChecked == false)
-                                {
-                                    previewWindow1.PreviewImage1.Source = resultMat.ToWriteableBitmap();
-                                }
-                                else
-                                {
-                                    // If two window out selected, split result Mat for two images
-                                    previewWindow1.PreviewImage1.Source = resultMat.SubMat(0, (int)previewHeight1, 0, (int)previewWidth).ToWriteableBitmap();
-                                    if (previewWindow2 != null)
-                                        previewWindow2.PreviewImage2.Source = resultMat.SubMat((int)previewHeight1 + 1, resultMat.Height - 1, 0, (int)previewWidth).ToWriteableBitmap();
-                                }
-                            }
-                        });
-
-                        //Thread.Sleep(playbackSleepTime);
+                        // Exit playback if thread is cancelled
+                        if (isCancelled) break;
                     }
                 }
             };
@@ -259,67 +201,77 @@ namespace MultiPlayer
         private void StopButton_Click(object sender, RoutedEventArgs e)
         {
             worker.CancelAsync();
-            foreach (var player in players) player.Dispose();
-
-            previewWindow1.Hide();
-            previewWindow1.Close();
-
-            previewWindow2?.Hide();
-            previewWindow2?.Close();
-
-            PlayButton.IsEnabled = players.Count > 0;
+            previewWindow.Hide();
+            previewWindow.Close();
+            PlayButton.IsEnabled = playlist.Count > 0;
             StopButton.IsEnabled = false;
         }
 
-        private Mat CombineMats(List<Mat> frames)
+        /// <summary>
+        /// Fills large Mat by content of the small Mat with overlapping
+        /// </summary>
+        /// <param name="largeMat">Large resulting Mat</param>
+        /// <param name="smallMat">Video frame</param>
+        public static void FillMat(Mat largeMat, Mat smallMat)
         {
-            // Ensure that all frames have the same height
-            int height = frames[0].Height;
-            // Calculate the total width of the combined image
-            int totalWidth = frames.Sum(f =>  f.Width);
-            // Create a new Mat with the combined width and the height of the first frame
-            Mat combinedImage = new Mat(height, totalWidth, frames[0].Type());
+            // Get dimensions of the large and small Mats
+            int largeWidth = largeMat.Width;
+            int largeHeight = largeMat.Height;
+            int smallWidth = smallMat.Width;
+            int smallHeight = smallMat.Height;
+            int rowHeight = smallHeight;
+            int startX = 0;
 
-            // Copy each frame to the combined image
-            int x_offset = 0;
-            foreach (Mat frame in frames)
+            // Loop through large Mat in rows
+            for (int y = 0; y < largeHeight - smallHeight*2; y += smallHeight)
             {
-                // Copy the current frame to the combined image
-                Rect roi = new Rect(x_offset, 0, frame.Width, frame.Height);
-                frame.CopyTo(combinedImage.SubMat(roi));
+                // Loop through large Mat in columns
+                for (int x = startX; x < largeWidth; x += smallWidth)
+                {
+                    // Calculate the width of the current column
+                    int colWidth = Math.Min(smallWidth, largeWidth - x);
 
-                // Update the x offset for the next frame
-                x_offset += frame.Width;
-            }
+                    // Define the region of interest (ROI) in the large Mat
+                    Rect roi = new Rect(x, y, colWidth, rowHeight);
 
-            return combinedImage;
-        }
+                    // Calculate the actual size of the small Mat to copy
+                    int copyWidth = Math.Min(smallWidth, largeWidth - x);
+                    int copyHeight = Math.Min(smallHeight, largeHeight - y);
 
-        private void FillRectangularMat(Mat destMat, Mat wideMat)
-        {
-            // Calculate the number of strips needed
-            int stripWidth = destMat.Width;
-            int numStrips = (int)Math.Ceiling((double)wideMat.Width / stripWidth);
+                    // If we are at the right or bottom edge, adjust the copy size
+                    if (x + smallWidth > largeWidth) copyWidth = largeWidth - x;
+                    if (y + smallHeight > largeHeight) copyHeight = largeHeight - y;
 
-            // Loop through each strip
-            for (int i = 0; i < numStrips; i++)
-            {
-                // Calculate the ROI for the current strip
-                Rect roi = new Rect(i * stripWidth, 0, stripWidth, wideMat.Height);
+                    // Define the region of interest (ROI) in the small Mat
+                    Rect smallRoi = new Rect(0, 0, copyWidth, copyHeight);
 
-                // Calculate the width of the strip to copy
-                int stripCopyWidth = Math.Min(stripWidth, wideMat.Width - i * stripWidth);
+                    // Copy the data from the small Mat to the large Mat
+                    Mat smallSubMat = smallMat.SubMat(smallRoi);
+                    Mat largeSubMat = largeMat.SubMat(roi);
+                    smallSubMat.CopyTo(largeSubMat);
 
-                // Copy the strip from the wideMat to the destMat
-                wideMat.SubMat(0, wideMat.Height, i * stripWidth, i * stripWidth + stripCopyWidth)
-                    .CopyTo(destMat.SubMat(i * wideMat.Height, (i + 1) * wideMat.Height, 0, stripCopyWidth));
-            }
+                    int wrapWidth = smallWidth - copyWidth;
 
-            // Fill remaining area of destMat with black
-            if (wideMat.Width < destMat.Width)
-            {
-                Mat blackStrip = new Mat(destMat.Height, destMat.Width - wideMat.Width, MatType.CV_8UC3, Scalar.Black);
-                blackStrip.CopyTo(destMat.SubMat(0, destMat.Rows, wideMat.Width, destMat.Width));
+                    // If the entire small Mat did not fit in the row, wrap the remaining part to the next row
+                    if (copyWidth < smallWidth)
+                    {
+                        int nextRowX = 0;
+                        int nextRowY = y + rowHeight;
+
+                        // Ensure the next row exists within the boundaries of the large Mat
+                        if (nextRowY < largeHeight)
+                        {
+                            Rect wrapRoi = new Rect(nextRowX, nextRowY, wrapWidth, rowHeight);
+                            Mat wrapSubMat = largeMat.SubMat(wrapRoi);
+                            smallSubMat = smallMat.SubMat(0, rowHeight, copyWidth, smallWidth);
+                            smallSubMat.CopyTo(wrapSubMat);
+                        }
+                    }
+
+                    // Update the start X position for the next column
+                    startX = x + colWidth;
+                    if (startX >= largeWidth) startX = wrapWidth;
+                }
             }
         }
     }

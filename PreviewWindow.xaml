@@ -1,13 +1,14 @@
-﻿<Window x:Class="MultiPlayer.PreviewWindow2"
+﻿<Window x:Class="MultiPlayer.PreviewWindow"
         xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:d="http://schemas.microsoft.com/expression/blend/2008"
         xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
         xmlns:local="clr-namespace:MultiPlayer"
+        mc:Ignorable="d"
         WindowStyle="None"
         WindowStartupLocation="Manual"
-        Height="400" Width="400">
+        Title="PreviewWindow" Height="400" Width="400">
     <Grid>
-        <Image x:Name="PreviewImage2" Width="400" Height="400" VerticalAlignment="Top" HorizontalAlignment="Left" Stretch="None"/>
+        <Image x:Name="PreviewImage" Width="400" Height="400" VerticalAlignment="Top" HorizontalAlignment="Left" Stretch="None"/>
     </Grid>
 </Window>
